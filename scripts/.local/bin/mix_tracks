@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+DIR="${1:-.}"
+OUTPUT="${2:-sessao_mixada.flac}"
+
+shopt -s nullglob nocaseglob
+FILES=(
+    "$DIR"/*.flac
+    "$DIR"/*.wav
+    "$DIR"/*.ogg
+    "$DIR"/*.opus
+    "$DIR"/*.m4a
+    "$DIR"/*.aac
+    "$DIR"/*.mp3
+)
+shopt -u nullglob nocaseglob
+
+# Evita usar uma saída anterior como faixa de entrada
+OUTPUT_ABS="$(realpath -m "$OUTPUT")"
+FILTERED_FILES=()
+
+for f in "${FILES[@]}"; do
+    if [ "$(realpath -m "$f")" != "$OUTPUT_ABS" ]; then
+        FILTERED_FILES+=("$f")
+    fi
+done
+
+FILES=("${FILTERED_FILES[@]}")
+
+if [ ${#FILES[@]} -eq 0 ]; then
+    echo "Nenhum arquivo de áudio encontrado em '$DIR'." >&2
+    exit 1
+fi
+
+echo "Faixas encontradas (${#FILES[@]}):"
+printf '  %s\n' "${FILES[@]}"
+echo
+
+INPUTS=()
+
+for f in "${FILES[@]}"; do
+    INPUTS+=(-i "$f")
+done
+
+N=${#FILES[@]}
+
+ffmpeg -y "${INPUTS[@]}" \
+    -filter_complex "amix=inputs=${N}:duration=longest:dropout_transition=3,loudnorm=I=-16:TP=-1.5:LRA=11" \
+    -ac 2 \
+    "$OUTPUT"
+
+echo
+echo "Pronto! Faixa combinada: $OUTPUT"
